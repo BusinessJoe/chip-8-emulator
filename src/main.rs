@@ -37,9 +37,9 @@ fn main() -> std::io::Result<()> {
                 f.set_source_rgb(0.0, 0.0, 0.0);
                 f.paint();
                 f.set_source_rgb(1.0, 1.0, 1.0);
-                for col in 0..64 {
-                    for row in 0..32 {
-                        if chip8.screen[row * 32 + col] {
+                for row in 0..32 {
+                    for col in 0..64 {
+                        if chip8.screen[row * 64 + col] {
                             f.rectangle((col*10) as f64, (row*10) as f64, 10.0, 10.0);
                         } 
                     }
