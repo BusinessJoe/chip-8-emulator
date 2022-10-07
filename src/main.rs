@@ -23,7 +23,7 @@ impl Game {
         let chip8 = {
             let mut chip8 = chip8::Chip8Emulator::new();
             chip8.initialize();
-            chip8.load_game("pong.rom").unwrap();
+            chip8.load_game("roms/delay_timer_test.ch8").unwrap();
             chip8
         };
 
@@ -61,7 +61,7 @@ impl Game {
 const WIDTH: u32 = 64;
 const HEIGHT: u32 = 32;
 
-const FPS: usize = 120;
+const FPS: usize = 60;
 const TIME_STEP: Duration = Duration::from_nanos(1_000_000_000 / FPS as u64);
 
 fn main() -> std::io::Result<()> {

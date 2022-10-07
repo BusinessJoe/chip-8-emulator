@@ -47,6 +47,11 @@ pub struct Chip8Emulator {
     // The Chip 8 uses a hex keyboard for input. This has 16 keys ranging from '0' to 'F'.
     // We can use a boolean array to store the state of each key.
     keys: [bool; 16],
+
+    // True when we are waiting for a key input. The emulator is effectively paused until it
+    // receives a key.
+    waiting_for_key: bool,
+    key_reg: usize,
 }
 
 const CHIP_8_FONTSET: [u8; 80] = [
@@ -81,6 +86,8 @@ impl Chip8Emulator {
             stack: [0; 16],
             sp: 0,
             keys: [false; 16],
+            waiting_for_key: false,
+            key_reg: 0,
         }
     }
 
@@ -103,6 +110,9 @@ impl Chip8Emulator {
         // Reset timers
         self.delay_timer = 0;
         self.sound_timer = 0;
+
+        // Reset boolean flag
+        self.waiting_for_key = false;
     }
 
     pub fn load_game(&mut self, game_name: &str) -> std::io::Result<()> {
@@ -179,9 +189,14 @@ impl Chip8Emulator {
     }
 
     pub fn emulate_cycle(&mut self) {
+        // Don't do anything if waiting for a key
+        if self.waiting_for_key {
+            return;
+        }
+
         // Fetch and execute opcode
-        let opcode_value = u16::from(self.memory[self.pc]) << 8
-            | u16::from(self.memory[self.pc + 1]);
+        let opcode_value =
+            u16::from(self.memory[self.pc]) << 8 | u16::from(self.memory[self.pc + 1]);
 
         self.handle_opcode(opcode_value);
 
@@ -198,11 +213,33 @@ impl Chip8Emulator {
     }
 
     pub fn set_keys(&mut self, keys: &[bool; 16]) {
+        for (i, (k1, k2)) in keys.iter().zip(self.keys.iter()).enumerate() {
+            if *k1 && !k2 {
+                self.handle_keypress(i.try_into().unwrap());
+                break;
+            }
+        }
         self.keys.copy_from_slice(keys);
     }
 
+    fn wait_for_keypress(&mut self, reg: usize) {
+        self.waiting_for_key = true;
+        self.key_reg = reg;
+    }
+
+    fn handle_keypress(&mut self, key: u8) {
+        if self.waiting_for_key {
+            self.waiting_for_key = false;
+            self.V[self.key_reg] = key;
+            self.pc += 2;
+        }
+    }
+
     fn clear_screen(&mut self) {
-        todo!()
+        for b in self.screen.as_mut_slice().iter_mut() {
+            *b = false;
+        }
+        self.pc += 2;
     }
 
     fn return_subroutine(&mut self) {
@@ -389,7 +426,8 @@ impl Chip8Emulator {
     }
 
     fn get_key(&mut self, reg: u8) {
-        todo!()
+        let reg = usize::from(reg);
+        self.wait_for_keypress(reg);
     }
 
     fn set_delay(&mut self, reg: u8) {
