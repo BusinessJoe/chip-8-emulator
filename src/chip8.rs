@@ -49,7 +49,7 @@ pub struct Chip8Emulator {
     keys: [bool; 16],
 }
 
-const chip8_fontset: [u8; 80] = [
+const CHIP_8_FONTSET: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
     0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -96,8 +96,8 @@ impl Chip8Emulator {
         self.memory = [0; 4096];
 
         // Load fontset
-        for i in 0..80 {
-            self.memory[i] = chip8_fontset[i];
+        for (i, byte) in CHIP_8_FONTSET.iter().enumerate() {
+            self.memory[i] = *byte;
         }
 
         // Reset timers
@@ -113,6 +113,18 @@ impl Chip8Emulator {
         Ok(())
     }
 
+    pub fn draw_screen(&self, screen: &mut [u8]) {
+        debug_assert_eq!(screen.len(), 4 * self.screen.len());
+        for (p, pix) in self.screen.iter().zip(screen.chunks_exact_mut(4)) {
+            let color = if *p {
+                [0xff, 0xff, 0xff, 0xff]
+            } else {
+                [0, 0, 0, 0]
+            };
+            pix.copy_from_slice(&color);
+        }
+    }
+
     fn split_opcode(value: u16) -> (u8, u8, u8, u8) {
         (
             ((value >> 12) & 0xF).try_into().unwrap(),
@@ -122,13 +134,7 @@ impl Chip8Emulator {
         )
     }
 
-    pub fn emulate_cycle(&mut self) {
-        // Fetch and execute opcode
-        let opcode_value = u16::from(self.memory[usize::from(self.pc)]) << 8
-            | u16::from(self.memory[usize::from(self.pc + 1)]);
-
-        // println!("pc: {:#X}, opcode: {:#06X}, stack: {:?}", self.pc, opcode_value, self.stack);
-
+    fn handle_opcode(&mut self, opcode_value: u16) {
         match Self::split_opcode(opcode_value) {
             (0x0, 0x0, 0xE, 0x0) => self.clear_screen(),
             (0x0, 0x0, 0xE, 0xE) => self.return_subroutine(),
@@ -165,8 +171,19 @@ impl Chip8Emulator {
             (0xF, x, 0x3, 0x3) => self.bcd(x),
             (0xF, x, 0x5, 0x5) => self.reg_dump(x),
             (0xF, x, 0x6, 0x5) => self.reg_load(x),
-            _ => panic!("{:#06X} is not a recognized opcode (pc: {:#X})", opcode_value, self.pc),
+            _ => panic!(
+                "{:#06X} is not a recognized opcode (pc: {:#X})",
+                opcode_value, self.pc
+            ),
         }
+    }
+
+    pub fn emulate_cycle(&mut self) {
+        // Fetch and execute opcode
+        let opcode_value = u16::from(self.memory[self.pc]) << 8
+            | u16::from(self.memory[self.pc + 1]);
+
+        self.handle_opcode(opcode_value);
 
         // Update timers
         if self.delay_timer > 0 {
@@ -174,13 +191,15 @@ impl Chip8Emulator {
         }
         if self.sound_timer > 0 {
             self.sound_timer -= 1;
-            if self.sound_timer == 0 {
+            if self.sound_timer != 0 {
                 println!("BEEP");
             }
         }
     }
 
-    pub fn set_keys(&self) {}
+    pub fn set_keys(&mut self, keys: &[bool; 16]) {
+        self.keys.copy_from_slice(keys);
+    }
 
     fn clear_screen(&mut self) {
         todo!()
@@ -207,7 +226,7 @@ impl Chip8Emulator {
     }
 
     fn skip_const_eq(&mut self, reg: u8, c: u8) {
-        if (self.V[usize::from(reg)] == c) {
+        if self.V[usize::from(reg)] == c {
             self.pc += 4;
         } else {
             self.pc += 2;
@@ -215,7 +234,7 @@ impl Chip8Emulator {
     }
 
     fn skip_const_neq(&mut self, reg: u8, c: u8) {
-        if (self.V[usize::from(reg)] != c) {
+        if self.V[usize::from(reg)] != c {
             self.pc += 4;
         } else {
             self.pc += 2;
@@ -269,7 +288,7 @@ impl Chip8Emulator {
             (val, false) => {
                 self.V[reg] = val;
                 self.V[0xF] = 0;
-            },
+            }
             (val, true) => {
                 self.V[reg] = val;
                 self.V[0xF] = 1;
@@ -284,11 +303,11 @@ impl Chip8Emulator {
         match self.V[reg].overflowing_sub(self.V[reg2]) {
             (val, false) => {
                 self.V[reg] = val;
-                self.V[0xF] = 0;
-            },
+                self.V[0xF] = 1;
+            }
             (val, true) => {
                 self.V[reg] = val;
-                self.V[0xF] = 1;
+                self.V[0xF] = 0;
             }
         }
         self.pc += 2;
@@ -309,7 +328,7 @@ impl Chip8Emulator {
     fn skip_reg_neq(&mut self, reg: u8, reg2: u8) {
         let reg = usize::from(reg);
         let reg2 = usize::from(reg2);
-        if (self.V[reg] != self.V[reg2]) {
+        if self.V[reg] != self.V[reg2] {
             self.pc += 4;
         } else {
             self.pc += 2;
@@ -390,7 +409,8 @@ impl Chip8Emulator {
     }
 
     fn set_i_sprite(&mut self, reg: u8) {
-        self.I = (reg * 5).into();
+        let reg = usize::from(reg);
+        self.I = (self.V[reg] * 5).into();
         self.pc += 2;
     }
 
@@ -414,4 +434,3 @@ impl Chip8Emulator {
         self.pc += 2;
     }
 }
-
