@@ -1,6 +1,7 @@
 use game_loop::{game_loop, Time, TimeTrait as _};
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
+use std::env;
 use std::time::Duration;
 use winit::{
     dpi::LogicalSize, event::VirtualKeyCode, event_loop::EventLoop, window::WindowBuilder,
@@ -19,11 +20,11 @@ struct Game {
 }
 
 impl Game {
-    fn new(pixels: Pixels) -> Self {
+    fn new(pixels: Pixels, rom_path: &str) -> Self {
         let chip8 = {
             let mut chip8 = chip8::Chip8Emulator::new();
             chip8.initialize();
-            chip8.load_game("roms/delay_timer_test.ch8").unwrap();
+            chip8.load_game(rom_path).unwrap();
             chip8
         };
 
@@ -66,6 +67,9 @@ const TIME_STEP: Duration = Duration::from_nanos(1_000_000_000 / FPS as u64);
 
 fn main() -> std::io::Result<()> {
     env_logger::init();
+
+    let args: Vec<String> = env::args().collect();
+
     let event_loop = EventLoop::new();
 
     let window = {
@@ -85,7 +89,7 @@ fn main() -> std::io::Result<()> {
         Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap()
     };
 
-    let game = Game::new(pixels);
+    let game = Game::new(pixels, &args[1]);
 
     game_loop(
         event_loop,
