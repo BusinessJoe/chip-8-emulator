@@ -62,7 +62,7 @@ impl Game {
 const WIDTH: u32 = 64;
 const HEIGHT: u32 = 32;
 
-const FPS: usize = 60;
+const FPS: usize = 500;
 const TIME_STEP: Duration = Duration::from_nanos(1_000_000_000 / FPS as u64);
 
 fn main() -> std::io::Result<()> {
